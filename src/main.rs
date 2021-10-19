@@ -7,11 +7,17 @@ use serenity::{
     model::{channel::Message, gateway::Ready},
     prelude::*,
 };
-use serenity::model::prelude::{GuildStatus, GuildUnavailable, GuildId};
-use serenity::model::event::TypingStartEvent;
-use serenity::model::channel::{Reaction, ReactionType, Channel};
-use serenity::model::id::EmojiId;
+use serenity::model::prelude::{GuildStatus, GuildUnavailable, GuildId, User, CurrentUser, VoiceState};
+use serenity::model::event::{ChannelPinsUpdateEvent, GuildMembersChunkEvent, GuildMemberUpdateEvent, InviteCreateEvent, InviteDeleteEvent, MessageUpdateEvent, PresenceUpdateEvent, ResumedEvent, ThreadListSyncEvent, ThreadMembersUpdateEvent, TypingStartEvent, VoiceServerUpdateEvent};
+use serenity::model::channel::{Reaction, ReactionType, Channel, GuildChannel, ChannelCategory, StageInstance, PartialGuildChannel};
+use serenity::model::id::{ApplicationId, ChannelId, EmojiId, IntegrationId, MessageId, RoleId};
 use std::borrow::Borrow;
+use std::collections::HashMap;
+use serenity::client::bridge::gateway::event::ShardStageUpdateEvent;
+use serenity::model::gateway::Presence;
+use serenity::model::guild::{Emoji, Guild, Integration, Member, PartialGuild, Role, ThreadMember};
+use serenity::model::interactions::application_command::ApplicationCommand;
+use serenity::model::interactions::{Interaction, InteractionResponseType};
 
 struct Handler;
 static MAIN_GUILD_ID: u64 = 745725474465906732;
@@ -49,10 +55,21 @@ impl EventHandler for Handler {
                 if g.id() == MAIN_GUILD.id() {
                     println!("GUILD: {:?}", g);
                     println!("GUILD: {:?}", MAIN_GUILD);
-
                 }
             }
         }
+
+        // Create commands
+        let commands = ApplicationCommand::set_global_application_commands(&ctx.http, |commands| {
+            commands.create_application_command(|command| {
+                command.name("cool").description("It is a cool command!")
+            })
+        }).await;
+
+        let guild_command = MAIN_GUILD.id()
+            .create_application_command(&ctx.http, |command| {
+                command.name("guild_test").description("test that only works in one guild")
+            }).await;
     }
 
     // Called whenever a user starts typing
@@ -79,13 +96,33 @@ impl EventHandler for Handler {
             println!("in: {:?}", channel);
         }
     }
+
+    async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
+        if let Interaction::ApplicationCommand(command) = interaction {
+            let content = match command.data.name.as_str() {
+                "cool" => "YOUR MOM".to_string(),
+                _ => "Unknown".to_string(),
+            };
+
+            if let Err(why) = command.create_interaction_response(&ctx.http, |res| {
+                res.kind(InteractionResponseType::ChannelMessageWithSource)
+                    .interaction_response_data(|msg| msg.content(content))
+            }).await {
+                println!("Cannot respond to slash command: {}", why);
+            }
+        }
+    }
 }
 
 #[tokio::main]
 async fn main() {
     dotenv().ok();
     let token = std::env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
-    let mut client = Client::builder(&token).event_handler(Handler).await.expect("Err creating client");
+    let application_id = std::env::var("DISCORD_APP_ID").expect("Expected an application id in the environment")
+        .parse().expect("Application ID is not a valid ID");
+
+    let mut client = Client::builder(&token).event_handler(Handler)
+        .application_id(application_id).await.expect("Err creating client");
 
     if let Err(why) = client.start().await {
         println!("Client error: {:?}", why);
