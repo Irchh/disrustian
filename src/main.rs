@@ -61,9 +61,13 @@ impl EventHandler for Handler {
 
         // Create commands
         let commands = ApplicationCommand::set_global_application_commands(&ctx.http, |commands| {
-            commands.create_application_command(|command| {
-                command.name("cool").description("It is a cool command!")
-            })
+            commands
+                .create_application_command(|command| {
+                    command.name("test").description("test desc")
+                })
+                .create_application_command(|command| {
+                    command.name("cool").description("It is a cool command!")
+                })
         }).await;
 
         let guild_command = MAIN_GUILD.id()
@@ -100,7 +104,8 @@ impl EventHandler for Handler {
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
         if let Interaction::ApplicationCommand(command) = interaction {
             let content = match command.data.name.as_str() {
-                "cool" => "YOUR MOM".to_string(),
+                "test" => "test".to_string(),
+                "cool" => "YOUR MOM LOL".to_string(),
                 _ => "Unknown".to_string(),
             };
 
