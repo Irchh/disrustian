@@ -76,10 +76,24 @@ fn words2counts(words: Vec<String>) -> Vec<Word> {
             v_index += 1;
         }
         if !contains {
-            v.push(Word{ word: word, count: 1 })
+            v.push(Word{ word, count: 1 })
         }
     }
     v
+}
+
+fn counts2fields(counts: Vec<Word>, num: u32) -> Vec<(String, String, bool)> {
+    let mut fields = vec![];
+    let mut count = 0;
+    for word in counts {
+        let field1 = "Nr. ".to_owned() + (count+1).to_string().as_str();
+        fields.push((word.clone().word, word.count.to_string(), true));
+        count += 1;
+        if count >= num {
+            break;
+        }
+    }
+    fields
 }
 
 #[async_trait]
@@ -208,19 +222,51 @@ impl EventHandler for Handler {
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
         println!("Got interaction");
         if let Interaction::ApplicationCommand(command) = interaction {
+            let mut embed = false;
+            let mut title = "";
+            let mut fields = vec![];
             let content = match command.data.name.as_str() {
                 "test" => translate::test_translate("Hello Mr. Pog!").await,
                 "cool" => "YOUR MOM LOL".to_string(),
                 "topwords" => {
-                    // TODO: some other stuff
-                    "nam".to_string()
+                    embed = true;
+                    title = "Top 5 words used so far:";
+
+                    let mut rdr = csv::Reader::from_path("./word_count.csv");
+                    if rdr.is_ok() {
+                        let mut rdr = rdr.unwrap();
+                        let mut old_counts = rec2word(rdr);
+                        old_counts.sort_by(|a, b| b.count.partial_cmp(&a.count).unwrap());
+                        fields = counts2fields(old_counts, 5);
+                        let mut result = "```\n".to_string();
+                        for field in fields {
+                            result += field.0.as_str();
+                            result += ": ";
+                            result += field.1.as_str();
+                            result += "\n";
+                        }
+                        result += "```";
+                        result
+                    } else {
+                        format!("Error: Could not open file: {:?}", rdr.err())
+                    }
                 }
                 _ => translate::test_translate("Hello Mr. Pog!").await,
             };
 
             if let Err(why) = command.create_interaction_response(&ctx.http, |res| {
                 res.kind(InteractionResponseType::ChannelMessageWithSource)
-                    .interaction_response_data(|msg| msg.content(content))
+                    .interaction_response_data(|msg| {
+                        if embed {
+                            msg.create_embed(|e| {
+                                e.title(title)
+                                    .description(content)
+                                    //.fields(fields)
+                            })
+                        } else {
+                            msg.content(content)
+                        }
+                    })
             }).await {
                 println!("Cannot respond to slash command: {}", why);
             }
@@ -230,6 +276,7 @@ impl EventHandler for Handler {
 
 #[tokio::main]
 async fn main() {
+
     dotenv().ok();
     let token = std::env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
     let application_id = std::env::var("DISCORD_APP_ID").expect("Expected an application id in the environment")
@@ -241,5 +288,4 @@ async fn main() {
     if let Err(why) = client.start().await {
         println!("Client error: {:?}", why);
     }
-    println!("Hello, world!");
 }
