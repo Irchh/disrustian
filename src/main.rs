@@ -9,19 +9,15 @@ use serenity::{
     model::{channel::Message, gateway::Ready},
     prelude::*,
 };
-use serenity::model::prelude::{GuildStatus, GuildUnavailable, GuildId, User, CurrentUser, VoiceState};
-use serenity::model::event::{ChannelPinsUpdateEvent, GuildMembersChunkEvent, GuildMemberUpdateEvent, InviteCreateEvent, InviteDeleteEvent, MessageUpdateEvent, PresenceUpdateEvent, ResumedEvent, ThreadListSyncEvent, ThreadMembersUpdateEvent, TypingStartEvent, VoiceServerUpdateEvent};
-use serenity::model::channel::{Reaction, ReactionType, Channel, GuildChannel, ChannelCategory, StageInstance, PartialGuildChannel};
-use serenity::model::id::{ApplicationId, ChannelId, EmojiId, IntegrationId, MessageId, RoleId};
+use serenity::model::prelude::{GuildStatus, GuildUnavailable, GuildId};
+use serenity::model::event::{TypingStartEvent};
+use serenity::model::channel::{ReactionType, Channel};
+use serenity::model::id::EmojiId;
 use std::borrow::Borrow;
-use std::collections::HashMap;
 use std::fs::File;
 use csv::{Reader, Writer};
 use serde::{Deserialize, Serialize};
-use serenity::client::bridge::gateway::event::ShardStageUpdateEvent;
-use serenity::model::gateway::Presence;
-use serenity::model::guild::{Emoji, Guild, Integration, Member, PartialGuild, Role, ThreadMember};
-use serenity::model::interactions::application_command::ApplicationCommand;
+use serenity::model::interactions::application_command::{ApplicationCommand};
 use serenity::model::interactions::{Interaction, InteractionResponseType};
 
 struct Handler;
@@ -230,14 +226,14 @@ impl EventHandler for Handler {
                 "cool" => "YOUR MOM LOL".to_string(),
                 "topwords" => {
                     embed = true;
-                    title = "Top 5 words used so far:";
+                    title = "Top 10 words used so far:";
 
                     let mut rdr = csv::Reader::from_path("./word_count.csv");
                     if rdr.is_ok() {
                         let mut rdr = rdr.unwrap();
                         let mut old_counts = rec2word(rdr);
                         old_counts.sort_by(|a, b| b.count.partial_cmp(&a.count).unwrap());
-                        fields = counts2fields(old_counts, 5);
+                        fields = counts2fields(old_counts, 10);
                         let mut result = "```\n".to_string();
                         for field in fields {
                             result += field.0.as_str();
