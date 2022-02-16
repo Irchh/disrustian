@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
+mod translate;
+
 use dotenv::dotenv;
 use serenity::{
     async_trait,
@@ -13,6 +15,9 @@ use serenity::model::channel::{Reaction, ReactionType, Channel, GuildChannel, Ch
 use serenity::model::id::{ApplicationId, ChannelId, EmojiId, IntegrationId, MessageId, RoleId};
 use std::borrow::Borrow;
 use std::collections::HashMap;
+use std::fs::File;
+use csv::{Reader, Writer};
+use serde::{Deserialize, Serialize};
 use serenity::client::bridge::gateway::event::ShardStageUpdateEvent;
 use serenity::model::gateway::Presence;
 use serenity::model::guild::{Emoji, Guild, Integration, Member, PartialGuild, Role, ThreadMember};
@@ -28,6 +33,55 @@ static THEFLIP_EMOTE: u64 = 758463821831471174;
 static IRCH_UID: u64 = 292362225388355584;
 static MARK_UID: u64 = 179024507657256960;
 
+#[derive(Deserialize, Serialize, Debug, Clone)]
+struct Word {
+    word: String,
+    count: u32,
+}
+
+fn rec2word(mut rdr: Reader<File>) -> Vec<Word> {
+    let mut v = vec![];
+    for result in rdr.records() {
+        if result.is_err() {
+            continue;
+        }
+        let rec = result.unwrap();
+        if rec.len() != 2 {
+            continue;
+        }
+        let w: Result<Word, csv::Error> = rec.deserialize(None);
+        if w.is_err() {
+            continue
+        }
+        v.push(w.unwrap());
+    }
+    v.clone()
+}
+
+fn words2counts(words: Vec<String>) -> Vec<Word> {
+    let mut v: Vec<Word> = vec![];
+    for word in words {
+        if word == "" {
+            continue
+        }
+        let mut contains = false;
+        let mut v_index = 0;
+        for mut w in v.clone() {
+            if w.word == word {
+                v.remove(v_index);
+                w.count += 1;
+                v.insert(v_index, w);
+                contains = true;
+            }
+            v_index += 1;
+        }
+        if !contains {
+            v.push(Word{ word: word, count: 1 })
+        }
+    }
+    v
+}
+
 #[async_trait]
 impl EventHandler for Handler {
     // Gets called every time someone sends a message in channel this bot can see.
@@ -42,6 +96,53 @@ impl EventHandler for Handler {
         }
 
         println!("MSG from {:?}: {:?}", msg.author.name, msg.content);
+
+        let mut msg_words = vec![];
+        for word in msg.content.split(&[' ', '\n'][..]) {
+            msg_words.push(word.to_lowercase());
+        }
+
+        let mut rdr = csv::Reader::from_path("./word_count.csv");
+        if rdr.is_ok() {
+            // SETUP
+            let mut rdr = rdr.unwrap();
+            let mut old_counts = rec2word(rdr);
+            let new_counts = words2counts(msg_words);
+            let mut wtr = Writer::from_path("word_count.csv");
+            // pog: 1
+
+            // LOOP AND WRITE ALL WORDS AGAIN
+            for new_word in new_counts {
+                let mut found = false;
+                let mut old_counts_index = 0;
+                for mut old_word in old_counts.clone() {
+                    // new_word: "pog", count: 1
+                    if new_word.word == old_word.word {
+                        old_counts.remove(old_counts_index);
+                        old_word.count += new_word.count;
+                        old_counts.insert(old_counts_index, old_word);
+                        found = true;
+                        break;
+                    }
+                    old_counts_index += 1;
+                }
+                if !found {
+                    old_counts.push(Word{ word: new_word.word.to_string(), count: new_word.count })
+                }
+            }
+            if wtr.is_ok() {
+                let mut wtr = wtr.unwrap();
+                wtr.write_record(&["word", "count"]);
+                //wtr.write_record(&[w.word.clone(), w.count.to_string()]);
+
+                for word in old_counts {
+                    wtr.write_record(&[word.word.clone(), word.count.to_string()]);
+                }
+                wtr.flush();
+            }
+        } else {
+            println!("rdr error: {}", rdr.err().unwrap());
+        }
         /*if let Err(why) = msg.channel_id.say(&ctx.http, msg.content).await {
             println!("Error sending message: {:?}", why);
         }*/
@@ -67,6 +168,9 @@ impl EventHandler for Handler {
                 })
                 .create_application_command(|command| {
                     command.name("cool").description("It is a cool command!")
+                })
+                .create_application_command(|command| {
+                    command.name("topwords").description("Displays top words said")
                 })
         }).await;
 
@@ -102,11 +206,16 @@ impl EventHandler for Handler {
     }
 
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
+        println!("Got interaction");
         if let Interaction::ApplicationCommand(command) = interaction {
             let content = match command.data.name.as_str() {
-                "test" => "test".to_string(),
+                "test" => translate::test_translate("Hello Mr. Pog!").await,
                 "cool" => "YOUR MOM LOL".to_string(),
-                _ => "Unknown".to_string(),
+                "topwords" => {
+                    // TODO: some other stuff
+                    "nam".to_string()
+                }
+                _ => translate::test_translate("Hello Mr. Pog!").await,
             };
 
             if let Err(why) = command.create_interaction_response(&ctx.http, |res| {

@@ -10,4 +10,9 @@ edition = "2018"
 dotenv = "0.15.0"
 serenity = { version = "0.10.9", default-features = false, features = ["client", "gateway", "rustls_backend", "model", "cache", "unstable_discord_api"] }
 tokio = { version = "1.12.0", features = ["macros", "rt-multi-thread"] }
+rustlate = "1.0.0"
 typenum = "1.14.0"
+reqwest = "0.11.6"
+tl = "0.2.1"
+csv = "1.1.6"
+serde = { version = "1", features = ["derive"] }
