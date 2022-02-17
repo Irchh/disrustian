@@ -93,6 +93,15 @@ fn counts2fields(counts: Vec<Word>, num: u32) -> Vec<(String, String, bool)> {
     fields
 }
 
+fn word_count(counts: Vec<Word>, word_str: &String) -> u32 {
+    for word in counts {
+        if word.word == *word_str {
+            return word.count
+        }
+    }
+    0
+}
+
 #[async_trait]
 impl EventHandler for Handler {
     // Gets called every time someone sends a message in channel this bot can see.
@@ -266,11 +275,20 @@ impl EventHandler for Handler {
                         .as_ref()
                         .expect("Expected user object");
 
-                    if let ApplicationCommandInteractionDataOptionValue::String(word) = options {
-                        let times = 0;
-                        format!("{:?} has been said {} times", word, times)
+
+                    let mut rdr = csv::Reader::from_path("./word_count.csv");
+                    if rdr.is_ok() {
+                        let mut rdr = rdr.unwrap();
+                        let mut counts = rec2word(rdr);
+
+                        if let ApplicationCommandInteractionDataOptionValue::String(word) = options {
+                            let times = word_count(counts, word);
+                            format!("{:?} has been said {} times", word, times)
+                        } else {
+                            format!("Something went wrong, idk what tho lol TROLD")
+                        }
                     } else {
-                        format!("Something went wrong, idk what tho lol TROLD")
+                        format!("Error: Could not open file: {:?}", rdr.err())
                     }
                 }
                 _ => translate::test_translate("Hello Mr. Pog!").await,
