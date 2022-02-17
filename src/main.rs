@@ -17,8 +17,9 @@ use std::borrow::Borrow;
 use std::fs::File;
 use csv::{Reader, Writer};
 use serde::{Deserialize, Serialize};
-use serenity::model::interactions::application_command::{ApplicationCommand};
+use serenity::model::interactions::application_command::{ApplicationCommand, ApplicationCommandInteractionDataOptionValue};
 use serenity::model::interactions::{Interaction, InteractionResponseType};
+use serenity::model::prelude::application_command::ApplicationCommandOptionType;
 
 struct Handler;
 static MAIN_GUILD_ID: u64 = 745725474465906732;
@@ -182,6 +183,14 @@ impl EventHandler for Handler {
                 .create_application_command(|command| {
                     command.name("topwords").description("Displays top words said")
                 })
+                .create_application_command(|command| {
+                    command.name("wordcount").description("Displays top words said").create_option(|o| {
+                        o.name("word")
+                            .description("The word to look up")
+                            .kind(ApplicationCommandOptionType::String)
+                            .required(true)
+                    })
+                })
         }).await;
 
         let guild_command = MAIN_GUILD.id()
@@ -245,6 +254,23 @@ impl EventHandler for Handler {
                         result
                     } else {
                         format!("Error: Could not open file: {:?}", rdr.err())
+                    }
+                }
+                "wordcount" => {
+                    let options = command
+                        .data
+                        .options
+                        .get(0)
+                        .expect("Expected user option")
+                        .resolved
+                        .as_ref()
+                        .expect("Expected user object");
+
+                    if let ApplicationCommandInteractionDataOptionValue::String(word) = options {
+                        let times = 0;
+                        format!("{:?} has been said {} times", word, times)
+                    } else {
+                        format!("Something went wrong, idk what tho lol TROLD")
                     }
                 }
                 _ => translate::test_translate("Hello Mr. Pog!").await,
