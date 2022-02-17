@@ -109,7 +109,7 @@ impl EventHandler for Handler {
         println!("MSG from {:?}: {:?}", msg.author.name, msg.content);
 
         let mut msg_words = vec![];
-        for word in msg.content.split(&[' ', '\n', '.', ',', '?', '!'][..]) {
+        for word in msg.content.split(&[' ', '\n', '.', ',', '?', '!', '<', '>', ':', '@', '(', ')', '"', '/', '\\', '|'][..]) {
             msg_words.push(word.to_lowercase());
         }
 
